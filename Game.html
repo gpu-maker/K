@@ -1,0 +1,446 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Emberfall - 8-Bit CYOA</title>
+<style>
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    background: #111;
+    color: #fff;
+    font-family: "Courier New", monospace;
+    display: flex;
+    justify-content: center;
+    min-height: 100vh;
+    padding: 20px;
+  }
+  .game {
+    width: min(900px, 100%);
+    background: #1b1b1b;
+    border: 6px solid #777;
+    box-shadow: 0 0 0 6px #222, 0 12px 35px #000;
+    image-rendering: pixelated;
+  }
+  header {
+    background: #4b1f1f;
+    border-bottom: 5px solid #9b6a32;
+    padding: 18px;
+    text-align: center;
+  }
+  h1 {
+    margin: 0;
+    color: #ffd36b;
+    font-size: clamp(28px, 6vw, 52px);
+    text-shadow: 4px 4px #000;
+  }
+  .subtitle { color: #ddd; margin-top: 8px; }
+  .stats {
+    display: grid;
+    grid-template-columns: repeat(5, 1fr);
+    gap: 6px;
+    padding: 10px;
+    background: #292929;
+    border-bottom: 4px solid #555;
+  }
+  .stat {
+    background: #111;
+    padding: 8px;
+    text-align: center;
+    border: 2px solid #555;
+    font-size: 13px;
+  }
+  .screen { padding: 18px; }
+  .scene {
+    min-height: 330px;
+    padding: 20px;
+    border: 4px solid #6e4a28;
+    background:
+      linear-gradient(rgba(20,20,20,.65), rgba(20,20,20,.65)),
+      repeating-linear-gradient(0deg, #263a25 0 12px, #30472c 12px 24px);
+    display: flex;
+    flex-direction: column;
+    justify-content: space-between;
+  }
+  .pixel-art {
+    text-align: center;
+    font-size: clamp(42px, 10vw, 80px);
+    line-height: 1;
+    margin: 5px 0 15px;
+    text-shadow: 5px 5px #000;
+  }
+  .chapter {
+    color: #ffd36b;
+    font-size: 20px;
+    margin-bottom: 12px;
+  }
+  .story {
+    white-space: pre-line;
+    line-height: 1.7;
+    font-size: 16px;
+  }
+  .choices {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 10px;
+    margin-top: 18px;
+  }
+  button {
+    font: inherit;
+    font-weight: bold;
+    color: #fff;
+    background: #3a3a3a;
+    border: 4px solid #777;
+    padding: 14px;
+    cursor: pointer;
+    text-align: left;
+    box-shadow: 4px 4px #000;
+  }
+  button:hover { background: #604b29; border-color: #d0a34a; }
+  button:active { transform: translate(3px,3px); box-shadow: 1px 1px #000; }
+  .bottom {
+    display: flex;
+    gap: 10px;
+    padding: 0 18px 18px;
+  }
+  .bottom button { flex: 1; text-align: center; }
+  .log {
+    background: #0b0b0b;
+    border: 3px solid #444;
+    margin-top: 12px;
+    padding: 10px;
+    max-height: 110px;
+    overflow-y: auto;
+    color: #aaa;
+    font-size: 12px;
+  }
+  @media (max-width: 650px) {
+    .stats { grid-template-columns: repeat(3, 1fr); }
+    .choices { grid-template-columns: 1fr; }
+    .scene { min-height: 390px; }
+  }
+</style>
+</head>
+<body>
+<div class="game">
+  <header>
+    <h1>⚔ EMBERFALL ⚔</h1>
+    <div class="subtitle">An 8-Bit Medieval Choose Your Own Adventure</div>
+  </header>
+
+  <div class="stats">
+    <div class="stat">❤️ HP<br><span id="hp">10</span>/10</div>
+    <div class="stat">🪙 GOLD<br><span id="gold">5</span></div>
+    <div class="stat">⚔ WEAPON<br>Rusty Sword</div>
+    <div class="stat">⭐ LEVEL<br><span id="level">1</span></div>
+    <div class="stat">🎒 ITEMS<br><span id="items">Bread ×2</span></div>
+  </div>
+
+  <div class="screen">
+    <div class="scene">
+      <div>
+        <div class="pixel-art" id="art">🏘️🌲🏰</div>
+        <div class="chapter" id="chapter">CHAPTER 1 — THE STRANGER</div>
+        <div class="story" id="story"></div>
+      </div>
+      <div class="choices" id="choices"></div>
+    </div>
+    <div class="log" id="log">Adventure log: Your journey begins...</div>
+  </div>
+
+  <div class="bottom">
+    <button onclick="restart()">↻ RESTART ADVENTURE</button>
+  </div>
+</div>
+
+<script>
+const state = {
+  hp: 10, gold: 5, level: 1, bread: 2, hasKey: false, alive: true
+};
+
+const scenes = {
+  start: {
+    chapter: "CHAPTER 1 — THE STRANGER",
+    art: "🏘️🌧️🧙",
+    text: `Rain pours over the village of Oakrest.
+
+You are standing outside the village tavern when a hooded stranger approaches.
+
+"You shouldn't stay here tonight."
+
+Before you can answer, a huge horn echoes from the forest.
+
+A guard runs through the village shouting:
+
+"THE CASTLE HAS RETURNED!"
+
+The stranger points toward the northern forest.`,
+    choices: [
+      ["A — Follow the stranger", "forest"],
+      ["B — Go with the guards", "castle"],
+      ["C — Hide in the tavern", "tavern"],
+      ["D — Search the village", "supplies"]
+    ]
+  },
+
+  forest: {
+    chapter: "CHAPTER 2 — THE FOREST",
+    art: "🌲🗡️🌲",
+    text: `You follow the stranger beneath the ancient trees.
+
+Suddenly, three goblins jump from behind the bushes!
+
+The stranger draws a glowing blade.
+
+"Choose quickly!" he says.`,
+    choices: [
+      ["A — Fight the goblins", "fight"],
+      ["B — Run deeper into the forest", "deepforest"]
+    ]
+  },
+
+  fight: {
+    chapter: "CHAPTER 3 — GOBLIN AMBUSH",
+    art: "🗡️👺👺👺",
+    text: `You raise your rusty sword.
+
+The battle is fierce, but you manage to defeat the goblins.
+
+The stranger searches one of their bags and finds a silver key.`,
+    effect: () => { state.hp = Math.max(1, state.hp - 2); state.hasKey = true; },
+    choices: [
+      ["A — Take the silver key", "castle"],
+      ["B — Leave it and return to Oakrest", "supplies"]
+    ]
+  },
+
+  deepforest: {
+    chapter: "CHAPTER 3 — THE OLD SHRINE",
+    art: "🌲🗿✨",
+    text: `You run until you discover an ancient stone shrine.
+
+A glowing crystal rests on its altar.
+
+A voice whispers:
+
+"Take the crystal, and the castle shall know your name."`,
+    choices: [
+      ["A — Take the crystal", "crystal"],
+      ["B — Leave it alone", "castle"]
+    ]
+  },
+
+  crystal: {
+    chapter: "CHAPTER 4 — THE CRYSTAL",
+    art: "💎✨🧙",
+    text: `You take the crystal.
+
+Warm light fills your hands. Your wounds vanish and your strength grows.
+
+You feel that something inside the castle is calling to you.`,
+    effect: () => { state.hp = 10; state.level = 2; },
+    choices: [
+      ["A — Enter the castle", "castle"],
+      ["B — Return to Oakrest", "supplies"]
+    ]
+  },
+
+  castle: {
+    chapter: "CHAPTER 4 — THE BLACK CASTLE",
+    art: "🏰🌙🔥",
+    text: `You reach the enormous black castle.
+
+Its gates tower above you.
+
+A stone door has three symbols carved into it: a crown, a skull, and a keyhole.
+
+${state.hasKey ? "The silver key in your pocket begins to glow." : "You don't have a key."}`,
+    choices: [
+      ["A — Use the silver key", "throne"],
+      ["B — Search around the castle", "courtyard"],
+      ["C — Return to Oakrest", "supplies"]
+    ]
+  },
+
+  courtyard: {
+    chapter: "CHAPTER 5 — THE COURTYARD",
+    art: "🏰⚔️💀",
+    text: `You sneak around the castle walls.
+
+Behind a broken statue you discover a hidden entrance.
+
+Inside, you hear footsteps.
+
+Something is coming.`,
+    choices: [
+      ["A — Enter the hidden passage", "throne"],
+      ["B — Run back to the village", "supplies"]
+    ]
+  },
+
+  throne: {
+    chapter: "FINAL CHAPTER — THE LOST KING",
+    art: "👑🧙‍♂️🏰",
+    text: `You enter the throne room.
+
+The missing king sits upon a dark stone throne.
+
+But he is not alone.
+
+A shadowy figure stands behind him.
+
+"I have been waiting for you," the figure says.
+
+The king rises.
+
+"Emberfall needs a new hero."
+
+Your adventure has reached its first ending...`,
+    choices: [
+      ["A — Face the shadow", "endingHero"],
+      ["B — Accept the king's quest", "endingQuest"]
+    ]
+  },
+
+  tavern: {
+    chapter: "CHAPTER 2 — THE TAVERN",
+    art: "🍺🏠🔥",
+    text: `You hide inside the tavern.
+
+The villagers lock the doors.
+
+Hours later, the horn sounds again.
+
+A messenger bursts through the door carrying a royal letter.
+
+"The king is missing. Whoever finds him will be rewarded 100 gold!"`,
+    effect: () => { state.gold += 2; },
+    choices: [
+      ["A — Accept the quest", "supplies"],
+      ["B — Stay hidden", "endingCoward"]
+    ]
+  },
+
+  supplies: {
+    chapter: "CHAPTER 2 — PREPARATION",
+    art: "🛡️🗡️🎒",
+    text: `You search Oakrest for useful supplies.
+
+You find a loaf of bread and a small healing potion.
+
+The road north is dangerous, but you're better prepared now.`,
+    effect: () => { state.bread += 1; state.hp = Math.min(10, state.hp + 1); },
+    choices: [
+      ["A — Travel to the castle", "castle"],
+      ["B — Enter the forest", "forest"]
+    ]
+  },
+
+  endingHero: {
+    chapter: "ENDING — HERO OF EMBERFALL",
+    art: "⚔️👑✨",
+    text: `You draw your sword and stand between the shadow and the king.
+
+The crystal, if you found it, shines brightly.
+
+The shadow retreats into the darkness.
+
+The king places a crown upon your head.
+
+"You are now the Guardian of Emberfall."
+
+🏆 YOU WIN!`,
+    choices: [["A — Play again", "start"]]
+  },
+
+  endingQuest: {
+    chapter: "ENDING — THE NEW QUEST",
+    art: "🗺️🐉⚔️",
+    text: `The king gives you an ancient map.
+
+"There is a dragon beyond the eastern mountains," he says.
+
+Your first adventure is over.
+
+But a much greater one is about to begin...`,
+    choices: [["A — Play again", "start"]]
+  },
+
+  endingCoward: {
+    chapter: "ENDING — THE QUIET LIFE",
+    art: "🏠🌅🍞",
+    text: `You decide the castle can wait.
+
+You become the village baker.
+
+You never learn what happened to the king.
+
+Maybe another hero will save Emberfall.
+
+THE END.`,
+    choices: [["A — Try again", "start"]]
+  }
+};
+
+function render(id) {
+  const s = scenes[id];
+  if (!s) return;
+  if (s.effect) s.effect();
+
+  document.getElementById("chapter").textContent = s.chapter;
+  document.getElementById("art").textContent = s.art;
+  document.getElementById("story").textContent = s.text;
+
+  const choices = document.getElementById("choices");
+  choices.innerHTML = "";
+
+  s.choices.forEach(([label, target]) => {
+    const btn = document.createElement("button");
+    btn.textContent = label;
+    btn.onclick = () => {
+      if (target === "start") resetState();
+      addLog(label);
+      render(target);
+      updateStats();
+      window.scrollTo({top: 0, behavior: "smooth"});
+    };
+    choices.appendChild(btn);
+  });
+
+  updateStats();
+}
+
+function updateStats() {
+  document.getElementById("hp").textContent = state.hp;
+  document.getElementById("gold").textContent = state.gold;
+  document.getElementById("level").textContent = state.level;
+  document.getElementById("items").textContent = "Bread ×" + state.bread +
+    (state.hasKey ? " + Silver Key" : "");
+}
+
+function addLog(text) {
+  const log = document.getElementById("log");
+  log.innerHTML += "<br>→ " + text;
+  log.scrollTop = log.scrollHeight;
+}
+
+function resetState() {
+  state.hp = 10;
+  state.gold = 5;
+  state.level = 1;
+  state.bread = 2;
+  state.hasKey = false;
+  state.alive = true;
+  document.getElementById("log").innerHTML = "Adventure log: Your journey begins...";
+}
+
+function restart() {
+  resetState();
+  render("start");
+}
+
+render("start");
+</script>
+</body>
+</html>
